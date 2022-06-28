@@ -1,6 +1,8 @@
 import { compare } from "bcryptjs";
 import { sign } from "jsonwebtoken";
 import { prismaClient } from "../../database/prismaClient";
+import { GenerateRefreshToken } from "../../provider/GenerateRefreshToken";
+import { GenerateToken } from "../../provider/GenerateToken";
 
 interface IUserAuth {
   username: string;
@@ -27,12 +29,21 @@ export class AuthenticateUserUseCase {
       throw new Error("User or password incorrect!");
     }
 
-    // Gerar o token do usuário
-    const token = sign({}, "1e5e51fa-05e3-4fa1-af5a-15cd1b1a3b4b", {
-      subject: userAlreadyExists.id,
-      expiresIn: "20s",
+    // Gera o token do usuário
+    const generateTokenProvider = new GenerateToken();
+    const token = await generateTokenProvider.execute(userAlreadyExists.id);
+
+    await prismaClient.refreshToken.deleteMany({
+      where: {
+        userId: userAlreadyExists.id,
+      },
     });
 
-    return { token };
+    const generateRefreshToken = new GenerateRefreshToken();
+    const refreshToken = await generateRefreshToken.execute(
+      userAlreadyExists.id
+    );
+
+    return { token, refreshToken };
   }
 }
